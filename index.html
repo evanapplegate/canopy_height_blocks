@@ -5,56 +5,69 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CONUS Canopy Height — GEDI L3</title>
 <style>
-  :root { --bg:#f4f6f8; --panel:#ffffff; --ink:#1a2028; --muted:#5c6b7a; --line:#d8dee6; }
+  :root { --bg:#FFFAF7; --panel:#fffdfb; --ink:#3a2f2a; --muted:#8a7a70; --line:#ece0d8; --accent:#c98a6a; }
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+    font-family:"Optima","Optima nova",Candara,"Segoe UI",Cambria,Georgia,serif; }
   header { padding:14px 20px 10px; border-bottom:1px solid var(--line); }
   h1 { margin:0; font-size:17px; font-weight:650; letter-spacing:.2px; }
   .sub { margin-top:3px; font-size:12.5px; color:var(--muted); }
+  .sub a { color:var(--accent); text-decoration:none; border-bottom:1px solid var(--line); }
+  .sub a:hover { border-bottom-color:var(--accent); }
   .tabs { display:flex; gap:6px; padding:10px 20px 0; }
   .tab { cursor:pointer; padding:7px 14px; border:1px solid var(--line); border-bottom:none;
     border-radius:8px 8px 0 0; background:var(--panel); color:var(--muted); font-size:13px; }
-  .tab.active { color:var(--ink); background:#eaf0f6; border-color:#b9c6d4; }
+  .tab.active { color:var(--ink); background:#fbeee6; border-color:#e0cabb; }
   .stage { position:relative; height:calc(100vh - 132px); border-top:1px solid var(--line); }
   canvas.view { position:absolute; inset:0; display:none; width:100%; height:100%; }
   canvas.view.active { display:block; }
-  .legend { position:absolute; left:20px; bottom:18px; background:rgba(255,255,255,.86);
+  .legend { position:absolute; left:20px; bottom:18px; background:rgba(255,250,247,.88);
     border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:11.5px; backdrop-filter:blur(6px); }
   .legend b { font-size:12px; font-weight:600; }
   .bar { height:10px; width:220px; border-radius:5px; margin:7px 0 4px;
-    background:linear-gradient(90deg,#596b8e,#667c72,#abb092,#d9bd9a,#d7a283,#f5dfe1); }
+    background:linear-gradient(90deg,#0b2b6b,#608575,#99a26d,#e5bc8a,#d7a283,#efaeb3); }
   .ticks { display:flex; justify-content:space-between; color:var(--muted); }
+  .swatches { display:flex; justify-content:space-between; width:220px; margin-top:6px; }
+  .sw { -webkit-appearance:none; appearance:none; width:32px; height:16px; padding:0; cursor:pointer;
+    border:1px solid var(--line); border-radius:4px; background:none; }
+  .sw::-webkit-color-swatch-wrapper { padding:0; }
+  .sw::-webkit-color-swatch { border:none; border-radius:3px; }
   .hint { position:absolute; right:20px; top:14px; font-size:11.5px; color:var(--muted);
-    background:rgba(255,255,255,.8); padding:6px 10px; border-radius:8px; border:1px solid var(--line); }
-  #tip { position:absolute; pointer-events:none; background:#ffffff; color:var(--ink); border:1px solid #b9c6d4;
-    border-radius:7px; padding:6px 9px; font-size:12px; display:none; z-index:9; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.12); }
-  .ctl { position:absolute; right:20px; bottom:18px; background:rgba(255,255,255,.9);
+    background:rgba(255,250,247,.82); padding:6px 10px; border-radius:8px; border:1px solid var(--line); }
+  .readout { position:absolute; left:20px; top:14px; font-size:11.5px; color:var(--ink);
+    background:rgba(255,250,247,.86); padding:7px 10px; border-radius:8px; border:1px solid var(--line);
+    font-family:"SF Mono",Menlo,Consolas,monospace; white-space:pre; line-height:1.5;
+    box-shadow:0 2px 8px rgba(120,80,50,.08); }
+  .readout b { font-family:inherit; color:var(--muted); font-weight:600; }
+  #tip { position:absolute; pointer-events:none; background:var(--panel); color:var(--ink); border:1px solid #e0cabb;
+    border-radius:7px; padding:6px 9px; font-size:12px; display:none; z-index:9; white-space:nowrap; box-shadow:0 2px 8px rgba(120,80,50,.12); }
+  .ctl { position:absolute; right:20px; bottom:18px; background:rgba(255,250,247,.92);
     border:1px solid var(--line); border-radius:10px; padding:11px 13px; font-size:12px;
-    box-shadow:0 4px 14px rgba(0,0,0,.08); }
+    box-shadow:0 4px 14px rgba(120,80,50,.09); }
   .ctl .row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:5px 0; color:var(--muted); }
   .ctl .row span { min-width:82px; }
   .ctl hr { border:none; border-top:1px solid var(--line); margin:8px 0; }
-  .ctl select { font-size:12px; padding:2px 6px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); }
-  input[type=range]{ width:118px; }
+  .ctl select { font-size:12px; padding:2px 6px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink); font-family:inherit; }
+  input[type=range]{ width:118px; accent-color:var(--accent); }
+  input[type=checkbox]{ accent-color:var(--accent); }
   .ctl .num { width:50px; font-size:11.5px; padding:2px 4px; border:1px solid var(--line);
-    border-radius:5px; background:#fff; color:var(--ink); text-align:right; }
-  .ctl button { width:100%; font-size:12px; padding:7px 8px; border:1px solid #b9c6d4; border-radius:7px;
-    background:#eaf0f6; color:var(--ink); cursor:pointer; font-weight:550; }
-  .ctl button:hover { background:#dfe8f1; }
+    border-radius:5px; background:var(--panel); color:var(--ink); text-align:right; font-family:inherit; }
+  .ctl button { width:100%; font-size:12.5px; padding:7px 8px; border:1px solid #e0cabb; border-radius:7px;
+    background:#fbeee6; color:var(--ink); cursor:pointer; font-weight:600; font-family:inherit; }
+  .ctl button:hover { background:#f6e2d5; }
   .ctl button:active { transform:translateY(1px); }
 </style>
 </head>
 <body>
 <header>
   <h1>Continental U.S. Forest Canopy Height</h1>
-  <div class="sub">GEDI L3 (v2) &mdash; mean top-of-canopy height (rh100), 2019&ndash;2022, native 1&nbsp;km resampled to ~3&nbsp;km cells, clipped to Natural Earth 50m US land (Great Lakes removed) &mdash; 906k columns. Source: NASA/UMD via OpenTopography.</div>
+  <div class="sub">GEDI L3 (v2) &mdash; mean top-of-canopy height (rh100), 2019&ndash;2022, native 1&nbsp;km resampled to ~3&nbsp;km cells in USA Albers (EPSG:5070), clipped to Natural Earth 50m US land (Great Lakes removed) &mdash; 863k columns. Source: <a href="https://portal.opentopography.org/raster?opentopoID=OTSDEM.032022.4326.1" target="_blank" rel="noopener">GEDI L3 gridded canopy height (NASA/UMD, via OpenTopography)</a>.</div>
 </header>
 <div class="tabs">
   <div class="tab active" data-view="eighth">3D &middot; 1/8-res (big blocks)</div>
   <div class="tab" data-view="quarter">3D &middot; quarter-res</div>
   <div class="tab" data-view="half">3D &middot; half-res</div>
-  <div class="tab" data-view="full">3D &middot; full-res</div>
+  <div class="tab" data-view="full">3D &middot; full-res (small blocks)</div>
 </div>
 <div class="stage">
   <canvas id="ceighth" class="view active"></canvas>
@@ -62,25 +75,34 @@
   <canvas id="chalf" class="view"></canvas>
   <canvas id="cfull" class="view"></canvas>
   <div class="hint">drag to orbit &middot; scroll to zoom</div>
+  <div class="readout" id="readout"></div>
   <div class="legend">
     <b>Canopy height</b>
     <div class="bar"></div>
-    <div class="ticks"><span>0&nbsp;m</span><span>15</span><span>30</span><span>45+&nbsp;m</span></div>
+    <div class="ticks"><span>0&nbsp;ft</span><span>50</span><span>100</span><span>150+&nbsp;ft</span></div>
+    <div class="swatches">
+      <input type="color" class="sw" id="stop0" value="#0b2b6b" title="~3 ft">
+      <input type="color" class="sw" id="stop1" value="#608575" title="~20 ft">
+      <input type="color" class="sw" id="stop2" value="#99a26d" title="~39 ft">
+      <input type="color" class="sw" id="stop3" value="#e5bc8a" title="~66 ft">
+      <input type="color" class="sw" id="stop4" value="#d7a283" title="~98 ft">
+      <input type="color" class="sw" id="stop5" value="#efaeb3" title="~148 ft">
+    </div>
   </div>
   <div class="ctl">
     <div class="row"><span>projection</span>
       <select id="proj">
         <option value="persp">perspective</option>
-        <option value="ortho">orthographic</option>
+        <option value="ortho" selected>orthographic</option>
       </select>
     </div>
-    <div class="row"><span>exaggeration</span><input id="exag" type="range" min="1" max="8" step="0.1" value="3.5"><input id="exagN" class="num" type="number" min="1" max="8" step="0.1" value="3.5"></div>
-    <div class="row"><span>saturation</span><input id="sat" type="range" min="0" max="2" step="0.05" value="1"><input id="satN" class="num" type="number" min="0" max="2" step="0.05" value="1"></div>
+    <div class="row"><span>exaggeration</span><input id="exag" type="range" min="1" max="8" step="0.1" value="1.5"><input id="exagN" class="num" type="number" min="1" max="8" step="0.1" value="1.5"></div>
+    <div class="row"><span>saturation</span><input id="sat" type="range" min="0" max="2" step="0.05" value="1.65"><input id="satN" class="num" type="number" min="0" max="2" step="0.05" value="1.65"></div>
     <hr>
-    <div class="row"><span>sun azimuth</span><input id="az" type="range" min="0" max="360" step="1" value="315"><input id="azN" class="num" type="number" min="0" max="360" step="1" value="315"></div>
-    <div class="row"><span>sun elevation</span><input id="el" type="range" min="5" max="90" step="1" value="55"><input id="elN" class="num" type="number" min="5" max="90" step="1" value="55"></div>
-    <div class="row"><span>sun intensity</span><input id="sunI" type="range" min="0" max="2" step="0.05" value="0.95"><input id="sunIN" class="num" type="number" min="0" max="2" step="0.05" value="0.95"></div>
-    <div class="row"><span>ambient</span><input id="ambI" type="range" min="0" max="1.5" step="0.05" value="0.62"><input id="ambIN" class="num" type="number" min="0" max="1.5" step="0.05" value="0.62"></div>
+    <div class="row"><span>sun azimuth</span><input id="az" type="range" min="0" max="360" step="1" value="269"><input id="azN" class="num" type="number" min="0" max="360" step="1" value="269"></div>
+    <div class="row"><span>sun elevation</span><input id="el" type="range" min="5" max="90" step="1" value="66"><input id="elN" class="num" type="number" min="5" max="90" step="1" value="66"></div>
+    <div class="row"><span>sun intensity</span><input id="sunI" type="range" min="0" max="5" step="0.05" value="2"><input id="sunIN" class="num" type="number" min="0" max="5" step="0.05" value="2"></div>
+    <div class="row"><span>ambient</span><input id="ambI" type="range" min="0" max="5" step="0.05" value="0.9"><input id="ambIN" class="num" type="number" min="0" max="5" step="0.05" value="0.9"></div>
     <div class="row"><span>shadows</span><input id="shadow" type="checkbox" checked></div>
     <hr>
     <button id="expBtn">export transparent PNG (4K)</button>
@@ -100,22 +122,19 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const D = window.CH_DATA;
-// hypsometric terrain ramp (matches reference screenshot): low=blue -> high=red
-const ramp = d3ramp();
-function d3ramp(){
-  // tiny inline piecewise-linear ramp (drops the d3 dependency)
-  const stops=[[1,'#596b8e'],[6,'#667c72'],[12,'#abb092'],[20,'#d9bd9a'],[30,'#d7a283'],[45,'#f5dfe1']]
-    .map(([v,h])=>[v,new THREE.Color(h)]);
-  return v=>{
-    if(v<=stops[0][0]) return stops[0][1];
-    if(v>=stops[stops.length-1][0]) return stops[stops.length-1][1];
-    for(let i=1;i<stops.length;i++){
-      if(v<=stops[i][0]){
-        const [v0,c0]=stops[i-1],[v1,c1]=stops[i], t=(v-v0)/(v1-v0);
-        return c0.clone().lerp(c1,t);
-      }
+// piecewise-linear color ramp keyed on canopy height (meters). Stop colors are live-editable.
+const STOP_VALS=[1,6,12,20,30,45];                                   // meters
+const STOP_HEX =['#0b2b6b','#608575','#99a26d','#e5bc8a','#d7a283','#efaeb3'];
+const STOPS=STOP_VALS.map((v,i)=>[v,new THREE.Color(STOP_HEX[i])]);
+function ramp(v){
+  if(v<=STOPS[0][0]) return STOPS[0][1];
+  if(v>=STOPS[STOPS.length-1][0]) return STOPS[STOPS.length-1][1];
+  for(let i=1;i<STOPS.length;i++){
+    if(v<=STOPS[i][0]){
+      const [v0,c0]=STOPS[i-1],[v1,c1]=STOPS[i], t=(v-v0)/(v1-v0);
+      return c0.clone().lerp(c1,t);
     }
-  };
+  }
 }
 
 // aggregate the full grid into step x step super-cells (bigger blocks at half-res)
@@ -138,18 +157,19 @@ function build3D(canvas, red){
   const {W,H,cell,grid}=red;
   const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,preserveDrawingBuffer:true});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-  renderer.setClearColor(0xf4f6f8,1);
+  renderer.setClearColor(0xFFFAF7,1);
   renderer.shadowMap.enabled=true;
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   renderer.shadowMap.autoUpdate=false;   // shadows only recompute when sun/exag change
   const bumpShadow=()=>{ renderer.shadowMap.needsUpdate=true; };
 
   const scene=new THREE.Scene();
-  scene.fog=new THREE.Fog(0xf4f6f8, 2600, 5200);
+  scene.fog=new THREE.Fog(0xFFFAF7, 2600, 5200);
 
-  const START=new THREE.Vector3(0,1150,1550);
+  const LOADZOOM=1.5;                                  // default ortho zoom
+  const START=new THREE.Vector3(0,1139,598);           // default orbit view
   const persp=new THREE.PerspectiveCamera(42,1,1,12000); persp.position.copy(START);
-  const ortho=new THREE.OrthographicCamera(-1,1,1,-1,-8000,12000); ortho.position.copy(START);
+  const ortho=new THREE.OrthographicCamera(-1,1,1,-1,-8000,12000); ortho.position.copy(START); ortho.zoom=LOADZOOM;
   let camera=persp;
 
   let controls;
@@ -164,7 +184,7 @@ function build3D(canvas, red){
   const ambient=new THREE.AmbientLight(0xffffff,0.62); scene.add(ambient);
   const sun=new THREE.DirectionalLight(0xffffff,0.95); scene.add(sun); scene.add(sun.target);
   sun.castShadow=true;
-  const SH=1100;
+  const SH=1500;
   Object.assign(sun.shadow.camera,{left:-SH,right:SH,top:SH,bottom:-SH,near:1,far:6500});
   const sm = cell>=2 ? 2048 : 4096;
   sun.shadow.mapSize.set(sm,sm);
@@ -177,11 +197,12 @@ function build3D(canvas, red){
   const mesh=new THREE.InstancedMesh(geo,new THREE.MeshLambertMaterial(),n);
   mesh.castShadow=true; mesh.receiveShadow=true;
   const dummy=new THREE.Object3D(), col=new THREE.Color();
-  const heights=new Float32Array(n);           // kept so we can recolor on saturation change
+  const heights=new Float32Array(n);           // meters, kept so we can recolor on saturation change
+  const FT=3.28084;                            // column heights are drawn in feet
   const cx=W/2, cz=H/2; let k=0;
   for(let r=0;r<H;r++)for(let c=0;c<W;c++){
     const v=grid[r*W+c]; if(v==null) continue;
-    const bh=Math.max(v,0.3);
+    const bh=Math.max(v,0.3)*FT;
     dummy.position.set((c-cx)*cell, bh/2, (r-cz)*cell);
     dummy.scale.set(1,bh,1); dummy.updateMatrix();
     mesh.setMatrixAt(k,dummy.matrix); col.copy(ramp(v)); mesh.setColorAt(k,col);
@@ -190,6 +211,13 @@ function build3D(canvas, red){
   mesh.instanceMatrix.needsUpdate=true;
   if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
   mesh.scale.y=3.5; scene.add(mesh);
+
+  // invisible shadow-catcher: only the map's cast shadow shows, no visible plane
+  const ground=new THREE.Mesh(
+    new THREE.PlaneGeometry(9000,9000),
+    new THREE.ShadowMaterial({color:0x2a2018, opacity:0.34}));
+  ground.rotation.x=-Math.PI/2; ground.position.y=-0.4;
+  ground.receiveShadow=true; scene.add(ground);
 
   const hsl={h:0,s:0,l:0}, tmp=new THREE.Color();
   function recolor(sat){
@@ -227,7 +255,7 @@ function build3D(canvas, red){
     renderer.clear(); renderer.render(scene,camera);
     const url=renderer.domElement.toDataURL('image/png');
     // restore live view
-    scene.fog=fog; renderer.setClearColor(0xf4f6f8,1);
+    scene.fog=fog; renderer.setClearColor(0xFFFAF7,1);
     renderer.setPixelRatio(oldPR); resize(); bumpShadow();
     const a=document.createElement('a'); a.href=url; a.download=`canopy_${name}_4k.png`; a.click();
   }
@@ -235,6 +263,15 @@ function build3D(canvas, red){
   return {
     canvas, resize, exportPNG,
     render(){ controls.update(); renderer.render(scene,camera); },
+    viewInfo(){ const p=camera.position, t=controls.target;
+      return { p, t, ortho:camera.isOrthographicCamera, zoom:camera.zoom, dist:p.distanceTo(t) }; },
+    getCam(){ return { ortho:camera.isOrthographicCamera, pos:camera.position.clone(),
+      tgt:controls.target.clone(), zoom:camera.zoom }; },
+    setCam(s){
+      if(camera.isOrthographicCamera!==s.ortho){ camera=s.ortho?ortho:persp; makeControls(camera); }
+      camera.position.copy(s.pos); controls.target.copy(s.tgt);
+      camera.zoom=s.zoom; camera.updateProjectionMatrix(); controls.update();
+    },
     setExag(v){ mesh.scale.y=v; bumpShadow(); },
     setSat(s){ recolor(s); },
     setSun(az,el){ const R=2500,a=az*Math.PI/180,e=el*Math.PI/180;
@@ -267,6 +304,15 @@ const activeInst=()=>insts.find(i=>i.canvas.classList.contains('active'));
 
 $('exag').addEventListener('input',e=>apply(i=>i.setExag(+e.target.value)));
 $('sat').addEventListener('input',e=>apply(i=>i.setSat(+e.target.value)));
+
+// live color-stop pickers: edit ramp stops -> recolor everything + legend gradient
+const legendBar=document.querySelector('.bar');
+function refreshColors(){
+  const hexes=STOPS.map((_,i)=>{ const hx=$('stop'+i).value; STOPS[i][1].set(hx); return hx; });
+  legendBar.style.background='linear-gradient(90deg,'+hexes.join(',')+')';
+  const s=+$('sat').value; apply(i=>i.setSat(s));
+}
+STOPS.forEach((_,i)=>$('stop'+i).addEventListener('input',refreshColors));
 const pushSun=()=>apply(i=>i.setSun(+$('az').value,+$('el').value));
 $('az').addEventListener('input',pushSun);
 $('el').addEventListener('input',pushSun);
@@ -276,23 +322,44 @@ $('shadow').addEventListener('change',e=>apply(i=>i.setShadow(e.target.checked))
 $('proj').addEventListener('change',e=>apply(i=>i.setProjection(e.target.value)));
 $('expBtn').addEventListener('click',()=>{ const a=activeInst(); if(a) a.exportPNG(a.name); });
 
-// initial sync + layout
-apply(i=>{ i.setSun(+$('az').value,+$('el').value); i.setExag(+$('exag').value); i.resize(); });
+// initial sync + layout (apply every default from the control panel)
+apply(i=>{
+  i.setSun(+$('az').value,+$('el').value);
+  i.setExag(+$('exag').value);
+  i.setSat(+$('sat').value);
+  i.setSunI(+$('sunI').value);
+  i.setAmbI(+$('ambI').value);
+  i.setProjection($('proj').value);
+  i.resize();
+});
 window.addEventListener('resize',()=>apply(i=>i.resize()));
 
+const readout=$('readout');
+const f=n=>(n>=0?' ':'')+n.toFixed(0);
 (function loop(){
   requestAnimationFrame(loop);
+  const a=activeInst();
   for(const i of insts) if(i.canvas.classList.contains('active')) i.render();
+  if(a){ const v=a.viewInfo();
+    readout.textContent =
+      `cam  X${f(v.p.x)}  Y${f(v.p.y)}  Z${f(v.p.z)}\n`+
+      `tgt  X${f(v.t.x)}  Y${f(v.t.y)}  Z${f(v.t.z)}\n`+
+      (v.ortho ? `zoom ${v.zoom.toFixed(2)}` : `dist ${f(v.dist)}`);
+  }
 })();
 
 // ---- tabs ----
 document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click',()=>{
+    const prev=activeInst();                       // carry the current orbit view across
+    const cam=prev?prev.getCam():null;
     document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
     document.querySelectorAll('canvas.view').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
     $('c'+t.dataset.view).classList.add('active');
-    apply(i=>i.resize());
+    const now=activeInst();
+    if(now&&cam) now.setCam(cam);
+    now&&now.resize();
   });
 });
 </script>

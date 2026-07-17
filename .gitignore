@@ -8,3 +8,9 @@ ne_countries.geojson
 ne_lakes.geojson
 us.geojson
 greatlakes.geojson
+conus_ch_albers.tif
+conus_ch_albers.xyz
+mask_albers.tif
+mask_albers.xyz
+us_5070.geojson
+greatlakes_5070.geojson
