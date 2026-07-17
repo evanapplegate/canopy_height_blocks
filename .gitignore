@@ -1,0 +1,10 @@
+# build intermediates — not needed to serve the page
+conus_ch.tif
+conus_ch.xyz
+conus_ch.json
+mask.tif
+mask.xyz
+ne_countries.geojson
+ne_lakes.geojson
+us.geojson
+greatlakes.geojson

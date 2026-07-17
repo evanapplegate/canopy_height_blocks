@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CONUS Canopy Height — GEDI L3</title>
+<style>
+  :root { --bg:#f4f6f8; --panel:#ffffff; --ink:#1a2028; --muted:#5c6b7a; --line:#d8dee6; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header { padding:14px 20px 10px; border-bottom:1px solid var(--line); }
+  h1 { margin:0; font-size:17px; font-weight:650; letter-spacing:.2px; }
+  .sub { margin-top:3px; font-size:12.5px; color:var(--muted); }
+  .tabs { display:flex; gap:6px; padding:10px 20px 0; }
+  .tab { cursor:pointer; padding:7px 14px; border:1px solid var(--line); border-bottom:none;
+    border-radius:8px 8px 0 0; background:var(--panel); color:var(--muted); font-size:13px; }
+  .tab.active { color:var(--ink); background:#eaf0f6; border-color:#b9c6d4; }
+  .stage { position:relative; height:calc(100vh - 132px); border-top:1px solid var(--line); }
+  canvas.view { position:absolute; inset:0; display:none; width:100%; height:100%; }
+  canvas.view.active { display:block; }
+  .legend { position:absolute; left:20px; bottom:18px; background:rgba(255,255,255,.86);
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:11.5px; backdrop-filter:blur(6px); }
+  .legend b { font-size:12px; font-weight:600; }
+  .bar { height:10px; width:220px; border-radius:5px; margin:7px 0 4px;
+    background:linear-gradient(90deg,#596b8e,#667c72,#abb092,#d9bd9a,#d7a283,#f5dfe1); }
+  .ticks { display:flex; justify-content:space-between; color:var(--muted); }
+  .hint { position:absolute; right:20px; top:14px; font-size:11.5px; color:var(--muted);
+    background:rgba(255,255,255,.8); padding:6px 10px; border-radius:8px; border:1px solid var(--line); }
+  #tip { position:absolute; pointer-events:none; background:#ffffff; color:var(--ink); border:1px solid #b9c6d4;
+    border-radius:7px; padding:6px 9px; font-size:12px; display:none; z-index:9; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+  .ctl { position:absolute; right:20px; bottom:18px; background:rgba(255,255,255,.9);
+    border:1px solid var(--line); border-radius:10px; padding:11px 13px; font-size:12px;
+    box-shadow:0 4px 14px rgba(0,0,0,.08); }
+  .ctl .row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:5px 0; color:var(--muted); }
+  .ctl .row span { min-width:82px; }
+  .ctl hr { border:none; border-top:1px solid var(--line); margin:8px 0; }
+  .ctl select { font-size:12px; padding:2px 6px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); }
+  input[type=range]{ width:118px; }
+  .ctl .num { width:50px; font-size:11.5px; padding:2px 4px; border:1px solid var(--line);
+    border-radius:5px; background:#fff; color:var(--ink); text-align:right; }
+  .ctl button { width:100%; font-size:12px; padding:7px 8px; border:1px solid #b9c6d4; border-radius:7px;
+    background:#eaf0f6; color:var(--ink); cursor:pointer; font-weight:550; }
+  .ctl button:hover { background:#dfe8f1; }
+  .ctl button:active { transform:translateY(1px); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Continental U.S. Forest Canopy Height</h1>
+  <div class="sub">GEDI L3 (v2) &mdash; mean top-of-canopy height (rh100), 2019&ndash;2022, native 1&nbsp;km resampled to ~3&nbsp;km cells, clipped to Natural Earth 50m US land (Great Lakes removed) &mdash; 906k columns. Source: NASA/UMD via OpenTopography.</div>
+</header>
+<div class="tabs">
+  <div class="tab active" data-view="eighth">3D &middot; 1/8-res (big blocks)</div>
+  <div class="tab" data-view="quarter">3D &middot; quarter-res</div>
+  <div class="tab" data-view="half">3D &middot; half-res</div>
+  <div class="tab" data-view="full">3D &middot; full-res</div>
+</div>
+<div class="stage">
+  <canvas id="ceighth" class="view active"></canvas>
+  <canvas id="cquarter" class="view"></canvas>
+  <canvas id="chalf" class="view"></canvas>
+  <canvas id="cfull" class="view"></canvas>
+  <div class="hint">drag to orbit &middot; scroll to zoom</div>
+  <div class="legend">
+    <b>Canopy height</b>
+    <div class="bar"></div>
+    <div class="ticks"><span>0&nbsp;m</span><span>15</span><span>30</span><span>45+&nbsp;m</span></div>
+  </div>
+  <div class="ctl">
+    <div class="row"><span>projection</span>
+      <select id="proj">
+        <option value="persp">perspective</option>
+        <option value="ortho">orthographic</option>
+      </select>
+    </div>
+    <div class="row"><span>exaggeration</span><input id="exag" type="range" min="1" max="8" step="0.1" value="3.5"><input id="exagN" class="num" type="number" min="1" max="8" step="0.1" value="3.5"></div>
+    <div class="row"><span>saturation</span><input id="sat" type="range" min="0" max="2" step="0.05" value="1"><input id="satN" class="num" type="number" min="0" max="2" step="0.05" value="1"></div>
+    <hr>
+    <div class="row"><span>sun azimuth</span><input id="az" type="range" min="0" max="360" step="1" value="315"><input id="azN" class="num" type="number" min="0" max="360" step="1" value="315"></div>
+    <div class="row"><span>sun elevation</span><input id="el" type="range" min="5" max="90" step="1" value="55"><input id="elN" class="num" type="number" min="5" max="90" step="1" value="55"></div>
+    <div class="row"><span>sun intensity</span><input id="sunI" type="range" min="0" max="2" step="0.05" value="0.95"><input id="sunIN" class="num" type="number" min="0" max="2" step="0.05" value="0.95"></div>
+    <div class="row"><span>ambient</span><input id="ambI" type="range" min="0" max="1.5" step="0.05" value="0.62"><input id="ambIN" class="num" type="number" min="0" max="1.5" step="0.05" value="0.62"></div>
+    <div class="row"><span>shadows</span><input id="shadow" type="checkbox" checked></div>
+    <hr>
+    <button id="expBtn">export transparent PNG (4K)</button>
+  </div>
+</div>
+
+<script src="conus_ch_data.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const D = window.CH_DATA;
+// hypsometric terrain ramp (matches reference screenshot): low=blue -> high=red
+const ramp = d3ramp();
+function d3ramp(){
+  // tiny inline piecewise-linear ramp (drops the d3 dependency)
+  const stops=[[1,'#596b8e'],[6,'#667c72'],[12,'#abb092'],[20,'#d9bd9a'],[30,'#d7a283'],[45,'#f5dfe1']]
+    .map(([v,h])=>[v,new THREE.Color(h)]);
+  return v=>{
+    if(v<=stops[0][0]) return stops[0][1];
+    if(v>=stops[stops.length-1][0]) return stops[stops.length-1][1];
+    for(let i=1;i<stops.length;i++){
+      if(v<=stops[i][0]){
+        const [v0,c0]=stops[i-1],[v1,c1]=stops[i], t=(v-v0)/(v1-v0);
+        return c0.clone().lerp(c1,t);
+      }
+    }
+  };
+}
+
+// aggregate the full grid into step x step super-cells (bigger blocks at half-res)
+function reduce(step){
+  if(step===1) return {W:D.w, H:D.h, cell:1.0, grid:D.grid};
+  const W=Math.ceil(D.w/step), H=Math.ceil(D.h/step);
+  const g=new Array(W*H).fill(null);
+  for(let R=0;R<H;R++)for(let C=0;C<W;C++){
+    let s=0,n=0;
+    for(let dr=0;dr<step;dr++)for(let dc=0;dc<step;dc++){
+      const r=R*step+dr, c=C*step+dc;
+      if(r<D.h&&c<D.w){ const v=D.grid[r*D.w+c]; if(v!=null){s+=v;n++;} }
+    }
+    if(n>0) g[R*W+C]=s/n;
+  }
+  return {W,H,cell:step,grid:g};
+}
+
+function build3D(canvas, red){
+  const {W,H,cell,grid}=red;
+  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,preserveDrawingBuffer:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setClearColor(0xf4f6f8,1);
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate=false;   // shadows only recompute when sun/exag change
+  const bumpShadow=()=>{ renderer.shadowMap.needsUpdate=true; };
+
+  const scene=new THREE.Scene();
+  scene.fog=new THREE.Fog(0xf4f6f8, 2600, 5200);
+
+  const START=new THREE.Vector3(0,1150,1550);
+  const persp=new THREE.PerspectiveCamera(42,1,1,12000); persp.position.copy(START);
+  const ortho=new THREE.OrthographicCamera(-1,1,1,-1,-8000,12000); ortho.position.copy(START);
+  let camera=persp;
+
+  let controls;
+  function makeControls(cam){
+    if(controls) controls.dispose();
+    controls=new OrbitControls(cam, renderer.domElement);
+    controls.enableDamping=true; controls.dampingFactor=0.08;
+    controls.maxPolarAngle=Math.PI*0.49; controls.maxDistance=6000;
+  }
+  makeControls(camera);
+
+  const ambient=new THREE.AmbientLight(0xffffff,0.62); scene.add(ambient);
+  const sun=new THREE.DirectionalLight(0xffffff,0.95); scene.add(sun); scene.add(sun.target);
+  sun.castShadow=true;
+  const SH=1100;
+  Object.assign(sun.shadow.camera,{left:-SH,right:SH,top:SH,bottom:-SH,near:1,far:6500});
+  const sm = cell>=2 ? 2048 : 4096;
+  sun.shadow.mapSize.set(sm,sm);
+  sun.shadow.bias=-0.0004; sun.shadow.normalBias=1.2;
+  const rim=new THREE.DirectionalLight(0x9ab6ff,0.22); rim.position.set(120,60,-160); scene.add(rim);
+
+  // instanced columns: x=lon, y=height, z=lat; built at exag=1, bottom on y=0
+  let n=0; for(const v of grid) if(v!=null) n++;
+  const geo=new THREE.BoxGeometry(cell,1,cell);   // full footprint so columns tile with no daylight gaps
+  const mesh=new THREE.InstancedMesh(geo,new THREE.MeshLambertMaterial(),n);
+  mesh.castShadow=true; mesh.receiveShadow=true;
+  const dummy=new THREE.Object3D(), col=new THREE.Color();
+  const heights=new Float32Array(n);           // kept so we can recolor on saturation change
+  const cx=W/2, cz=H/2; let k=0;
+  for(let r=0;r<H;r++)for(let c=0;c<W;c++){
+    const v=grid[r*W+c]; if(v==null) continue;
+    const bh=Math.max(v,0.3);
+    dummy.position.set((c-cx)*cell, bh/2, (r-cz)*cell);
+    dummy.scale.set(1,bh,1); dummy.updateMatrix();
+    mesh.setMatrixAt(k,dummy.matrix); col.copy(ramp(v)); mesh.setColorAt(k,col);
+    heights[k]=v; k++;
+  }
+  mesh.instanceMatrix.needsUpdate=true;
+  if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
+  mesh.scale.y=3.5; scene.add(mesh);
+
+  const hsl={h:0,s:0,l:0}, tmp=new THREE.Color();
+  function recolor(sat){
+    for(let i=0;i<n;i++){
+      tmp.copy(ramp(heights[i])); tmp.getHSL(hsl);
+      tmp.setHSL(hsl.h, Math.min(hsl.s*sat,1), hsl.l);
+      mesh.setColorAt(i,tmp);
+    }
+    mesh.instanceColor.needsUpdate=true;
+  }
+
+  function resize(){
+    const rect=canvas.parentElement.getBoundingClientRect();
+    renderer.setSize(rect.width,rect.height,false);
+    const aspect=rect.width/rect.height;
+    persp.aspect=aspect; persp.updateProjectionMatrix();
+    const halfH=900, halfW=halfH*aspect;
+    Object.assign(ortho,{left:-halfW,right:halfW,top:halfH,bottom:-halfH});
+    ortho.updateProjectionMatrix();
+  }
+  bumpShadow();
+
+  function exportPNG(name){
+    const rect=canvas.parentElement.getBoundingClientRect();
+    const aspect=rect.width/rect.height;
+    const OW=3840, OH=Math.round(OW/aspect);
+    const oldPR=renderer.getPixelRatio(), fog=scene.fog;
+    renderer.setPixelRatio(1); renderer.setSize(OW,OH,false);
+    if(camera.isPerspectiveCamera){ camera.aspect=OW/OH; camera.updateProjectionMatrix(); }
+    else { const halfH=900,halfW=halfH*(OW/OH);
+      Object.assign(ortho,{left:-halfW,right:halfW,top:halfH,bottom:-halfH}); ortho.updateProjectionMatrix(); }
+    scene.fog=null;                       // no haze tint on transparent export
+    renderer.setClearColor(0x000000,0);
+    renderer.shadowMap.needsUpdate=true;
+    renderer.clear(); renderer.render(scene,camera);
+    const url=renderer.domElement.toDataURL('image/png');
+    // restore live view
+    scene.fog=fog; renderer.setClearColor(0xf4f6f8,1);
+    renderer.setPixelRatio(oldPR); resize(); bumpShadow();
+    const a=document.createElement('a'); a.href=url; a.download=`canopy_${name}_4k.png`; a.click();
+  }
+
+  return {
+    canvas, resize, exportPNG,
+    render(){ controls.update(); renderer.render(scene,camera); },
+    setExag(v){ mesh.scale.y=v; bumpShadow(); },
+    setSat(s){ recolor(s); },
+    setSun(az,el){ const R=2500,a=az*Math.PI/180,e=el*Math.PI/180;
+      sun.position.set(R*Math.cos(e)*Math.sin(a), R*Math.sin(e), R*Math.cos(e)*Math.cos(a)); bumpShadow(); },
+    setSunI(v){ sun.intensity=v; },
+    setAmbI(v){ ambient.intensity=v; },
+    setShadow(on){ renderer.shadowMap.enabled=on; sun.castShadow=on; mesh.material.needsUpdate=true; bumpShadow(); },
+    setProjection(mode){ const tgt=controls.target.clone();
+      const next=mode==='ortho'?ortho:persp; next.position.copy(camera.position);
+      camera=next; makeControls(camera); controls.target.copy(tgt); resize(); }
+  };
+}
+
+// ---- all instances share one control panel (all four res levels built up-front) ----
+const specs=[['full',1],['half',2],['quarter',4],['eighth',8]];
+const insts=specs.map(([name,step])=>{
+  const api=build3D(document.getElementById('c'+name), reduce(step));
+  api.name=name; return api;
+});
+const apply=fn=>insts.forEach(fn);
+const $=id=>document.getElementById(id);
+const activeInst=()=>insts.find(i=>i.canvas.classList.contains('active'));
+
+// two-way link each range slider with its number box; number edits re-fire the range's input
+['exag','sat','az','el','sunI','ambI'].forEach(id=>{
+  const r=$(id), num=$(id+'N');
+  r.addEventListener('input',()=>{ num.value=r.value; });
+  num.addEventListener('input',()=>{ r.value=num.value; r.dispatchEvent(new Event('input')); });
+});
+
+$('exag').addEventListener('input',e=>apply(i=>i.setExag(+e.target.value)));
+$('sat').addEventListener('input',e=>apply(i=>i.setSat(+e.target.value)));
+const pushSun=()=>apply(i=>i.setSun(+$('az').value,+$('el').value));
+$('az').addEventListener('input',pushSun);
+$('el').addEventListener('input',pushSun);
+$('sunI').addEventListener('input',e=>apply(i=>i.setSunI(+e.target.value)));
+$('ambI').addEventListener('input',e=>apply(i=>i.setAmbI(+e.target.value)));
+$('shadow').addEventListener('change',e=>apply(i=>i.setShadow(e.target.checked)));
+$('proj').addEventListener('change',e=>apply(i=>i.setProjection(e.target.value)));
+$('expBtn').addEventListener('click',()=>{ const a=activeInst(); if(a) a.exportPNG(a.name); });
+
+// initial sync + layout
+apply(i=>{ i.setSun(+$('az').value,+$('el').value); i.setExag(+$('exag').value); i.resize(); });
+window.addEventListener('resize',()=>apply(i=>i.resize()));
+
+(function loop(){
+  requestAnimationFrame(loop);
+  for(const i of insts) if(i.canvas.classList.contains('active')) i.render();
+})();
+
+// ---- tabs ----
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('canvas.view').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    $('c'+t.dataset.view).classList.add('active');
+    apply(i=>i.resize());
+  });
+});
+</script>
+</body>
+</html>
