@@ -104,6 +104,7 @@
     <div class="row"><span>sun intensity</span><input id="sunI" type="range" min="0" max="5" step="0.05" value="2"><input id="sunIN" class="num" type="number" min="0" max="5" step="0.05" value="2"></div>
     <div class="row"><span>ambient</span><input id="ambI" type="range" min="0" max="5" step="0.05" value="0.9"><input id="ambIN" class="num" type="number" min="0" max="5" step="0.05" value="0.9"></div>
     <div class="row"><span>shadows</span><input id="shadow" type="checkbox" checked></div>
+    <div class="row"><span>shadow softness</span><input id="soft" type="range" min="0" max="25" step="1" value="8"><input id="softN" class="num" type="number" min="0" max="25" step="1" value="8"></div>
     <hr>
     <button id="expBtn">export transparent PNG (4K)</button>
   </div>
@@ -159,8 +160,8 @@ function build3D(canvas, red){
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   renderer.setClearColor(0xFFFAF7,1);
   renderer.shadowMap.enabled=true;
-  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-  renderer.shadowMap.autoUpdate=false;   // shadows only recompute when sun/exag change
+  renderer.shadowMap.type=THREE.VSMShadowMap;   // soft, diffuse, blurrable shadows (no acne stair-steps)
+  renderer.shadowMap.autoUpdate=false;   // shadows only recompute when sun/exag/softness change
   const bumpShadow=()=>{ renderer.shadowMap.needsUpdate=true; };
 
   const scene=new THREE.Scene();
@@ -184,11 +185,14 @@ function build3D(canvas, red){
   const ambient=new THREE.AmbientLight(0xffffff,0.62); scene.add(ambient);
   const sun=new THREE.DirectionalLight(0xffffff,0.95); scene.add(sun); scene.add(sun.target);
   sun.castShadow=true;
-  const SH=1500;
+  // frustum tightened to the map (+margin for edge shadows on the plane)
+  const SH=1050;
   Object.assign(sun.shadow.camera,{left:-SH,right:SH,top:SH,bottom:-SH,near:1,far:6500});
-  const sm = cell>=2 ? 2048 : 4096;
+  const sm = cell===1 ? 4096 : 2048;   // VSM blurs, so extreme res isn't needed
   sun.shadow.mapSize.set(sm,sm);
-  sun.shadow.bias=-0.0004; sun.shadow.normalBias=1.2;
+  sun.shadow.blurSamples=25;           // smooth gaussian blur of the shadow
+  sun.shadow.radius=8;                 // softness (driven by the slider)
+  sun.shadow.bias=-0.0006;
   const rim=new THREE.DirectionalLight(0x9ab6ff,0.22); rim.position.set(120,60,-160); scene.add(rim);
 
   // instanced columns: x=lon, y=height, z=lat; built at exag=1, bottom on y=0
@@ -279,6 +283,7 @@ function build3D(canvas, red){
     setSunI(v){ sun.intensity=v; },
     setAmbI(v){ ambient.intensity=v; },
     setShadow(on){ renderer.shadowMap.enabled=on; sun.castShadow=on; mesh.material.needsUpdate=true; bumpShadow(); },
+    setSoft(v){ sun.shadow.radius=Math.max(v,0.0001); bumpShadow(); },
     setProjection(mode){ const tgt=controls.target.clone();
       const next=mode==='ortho'?ortho:persp; next.position.copy(camera.position);
       camera=next; makeControls(camera); controls.target.copy(tgt); resize(); }
@@ -296,7 +301,7 @@ const $=id=>document.getElementById(id);
 const activeInst=()=>insts.find(i=>i.canvas.classList.contains('active'));
 
 // two-way link each range slider with its number box; number edits re-fire the range's input
-['exag','sat','az','el','sunI','ambI'].forEach(id=>{
+['exag','sat','az','el','sunI','ambI','soft'].forEach(id=>{
   const r=$(id), num=$(id+'N');
   r.addEventListener('input',()=>{ num.value=r.value; });
   num.addEventListener('input',()=>{ r.value=num.value; r.dispatchEvent(new Event('input')); });
@@ -319,6 +324,7 @@ $('el').addEventListener('input',pushSun);
 $('sunI').addEventListener('input',e=>apply(i=>i.setSunI(+e.target.value)));
 $('ambI').addEventListener('input',e=>apply(i=>i.setAmbI(+e.target.value)));
 $('shadow').addEventListener('change',e=>apply(i=>i.setShadow(e.target.checked)));
+$('soft').addEventListener('input',e=>apply(i=>i.setSoft(+e.target.value)));
 $('proj').addEventListener('change',e=>apply(i=>i.setProjection(e.target.value)));
 $('expBtn').addEventListener('click',()=>{ const a=activeInst(); if(a) a.exportPNG(a.name); });
 
@@ -329,6 +335,7 @@ apply(i=>{
   i.setSat(+$('sat').value);
   i.setSunI(+$('sunI').value);
   i.setAmbI(+$('ambI').value);
+  i.setSoft(+$('soft').value);
   i.setProjection($('proj').value);
   i.resize();
 });
